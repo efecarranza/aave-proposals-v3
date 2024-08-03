@@ -197,7 +197,7 @@ contract AaveV3Ethereum_MayFundingUpdate_20240603_Test is ProtocolV3TestBase {
     assertEq(withdrawerBalanceAfter, withdrawerBalanceBefore);
   }
 
-  function test_swapEvents() public {
+  function test_swapEvents_andSwaps() public {
     vm.expectEmit(true, true, true, true, MiscEthereum.AAVE_SWAPPER);
     emit SwapRequested(
       proposal.MILKMAN(),
@@ -219,7 +219,7 @@ contract AaveV3Ethereum_MayFundingUpdate_20240603_Test is ProtocolV3TestBase {
       proposal.GHO_USD_FEED(),
       26176609646753004781352, // Hardcoded as dynamic
       address(AaveV3Ethereum.COLLECTOR),
-      150
+      500
     );
 
     vm.expectEmit(true, true, true, true, MiscEthereum.AAVE_SWAPPER);
@@ -231,7 +231,7 @@ contract AaveV3Ethereum_MayFundingUpdate_20240603_Test is ProtocolV3TestBase {
       proposal.GHO_USD_FEED(),
       119858878007, // Hardcoded as dynamic
       address(AaveV3Ethereum.COLLECTOR),
-      100
+      500
     );
 
     vm.expectEmit(true, true, true, true, MiscEthereum.AAVE_SWAPPER);
@@ -283,6 +283,17 @@ contract AaveV3Ethereum_MayFundingUpdate_20240603_Test is ProtocolV3TestBase {
     );
 
     executePayload(vm, address(proposal));
+
+    _baseSwapTest(
+      proposal.PRICE_CHECKER(),
+      2105789900914990300000, // rETH/ETH ~ 1.1178 exchange rate on Aug 3, 2024
+      50,
+      1883870013343165667402,
+      AaveV3EthereumAssets.rETH_UNDERLYING,
+      AaveV3EthereumAssets.WETH_UNDERLYING,
+      proposal.RETH_FEED(),
+      AaveV3EthereumAssets.WETH_ORACLE
+    );
   }
 
   function test_wethMigration() public {
@@ -338,4 +349,61 @@ contract AaveV3Ethereum_MayFundingUpdate_20240603_Test is ProtocolV3TestBase {
       3e18
     );
   }
+
+  error InsufficientOutAmount(uint256 expected, uint256 actual);
+
+  function _baseSwapTest(
+    address priceChecker,
+    uint256 expectedOut,
+    uint256 slippage,
+    uint256 amount,
+    address from,
+    address to,
+    address fromOracle,
+    address toOracle
+  ) internal {
+    uint256 MAX_DIFF_TOLERANCE = 500; // 5% Leeway
+
+    address calc = IPriceChecker(priceChecker).EXPECTED_OUT_CALCULATOR();
+    uint256 outCalc = ICalculator(calc).getExpectedOut(
+      amount,
+      from,
+      to,
+      _encodeOracles(fromOracle, toOracle)
+    );
+
+    uint256 allowedOut = (((expectedOut * (10000 - slippage)) / 10000) *
+      (10000 - MAX_DIFF_TOLERANCE)) / 10000;
+
+    if (allowedOut < outCalc) {
+      revert InsufficientOutAmount(allowedOut, outCalc);
+    }
+  }
+
+  function _encodeOracles(
+    address fromOracle,
+    address toOracle
+  ) internal pure returns (bytes memory) {
+    address[] memory paths = new address[](2);
+    paths[0] = fromOracle;
+    paths[1] = toOracle;
+
+    bool[] memory reverses = new bool[](2);
+    reverses[1] = true;
+
+    return abi.encode(paths, reverses);
+  }
+}
+
+interface IPriceChecker {
+  function EXPECTED_OUT_CALCULATOR() external returns (address);
+}
+
+interface ICalculator {
+  function getExpectedOut(
+    uint256 _amountIn,
+    address _fromToken,
+    address _toToken,
+    bytes calldata _data
+  ) external view returns (uint256);
 }
