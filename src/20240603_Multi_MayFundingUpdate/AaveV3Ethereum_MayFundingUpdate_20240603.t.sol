@@ -287,7 +287,6 @@ contract AaveV3Ethereum_MayFundingUpdate_20240603_Test is ProtocolV3TestBase {
     _baseSwapTest(
       proposal.PRICE_CHECKER(),
       2105789900914990300000, // rETH/ETH ~ 1.1178 exchange rate on Aug 3, 2024
-      50,
       1883870013343165667402,
       AaveV3EthereumAssets.rETH_UNDERLYING,
       AaveV3EthereumAssets.WETH_UNDERLYING,
@@ -367,11 +366,18 @@ contract AaveV3Ethereum_MayFundingUpdate_20240603_Test is ProtocolV3TestBase {
   /// This test will also ensure the oracles have the necessary functions or it will
   /// revert. For example, if the oracle does not have the `decimals()` function as
   /// some oracles do, then it will fail ahead of time.
+  ///
+  /// @param priceChecker The price checker used by Milkman
+  /// @param expectedOut The amount we've manually checked we should be getting
+  /// @param amountIn The amount of from token to be swapped
+  /// @param from The token to swap from
+  /// @param to The token to swap to
+  /// @param fromOracle The oracle of the token to swap from
+  /// @param toOracle The oracle of the token to swap to
   function _baseSwapTest(
     address priceChecker,
     uint256 expectedOut,
-    uint256 slippage,
-    uint256 amount,
+    uint256 amountIn,
     address from,
     address to,
     address fromOracle,
@@ -381,14 +387,13 @@ contract AaveV3Ethereum_MayFundingUpdate_20240603_Test is ProtocolV3TestBase {
 
     address calc = IPriceChecker(priceChecker).EXPECTED_OUT_CALCULATOR();
     uint256 outCalc = ICalculator(calc).getExpectedOut(
-      amount,
+      amountIn,
       from,
       to,
       _encodeOracles(fromOracle, toOracle)
     );
 
-    uint256 allowedOut = (((expectedOut * (10000 - slippage)) / 10000) *
-      (10000 - MAX_DIFF_TOLERANCE)) / 10000;
+    uint256 allowedOut = (expectedOut * (10000 - MAX_DIFF_TOLERANCE)) / 10000;
 
     if (allowedOut < outCalc) {
       revert InsufficientOutAmount(allowedOut, outCalc);
