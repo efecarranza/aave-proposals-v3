@@ -352,6 +352,21 @@ contract AaveV3Ethereum_MayFundingUpdate_20240603_Test is ProtocolV3TestBase {
 
   error InsufficientOutAmount(uint256 expected, uint256 actual);
 
+  /// Basic test for swaps that checks the prices returned make sense.
+  /// For example, if both oracles are the same base (USD or ETH), then
+  /// getting prices from tradingview.com and using them as `expectedOut`
+  /// should work with this test and the other parameters.
+  ///
+  /// Example: On August 3, 2024, I want to swap 3013 USDC for 1 WETH. If
+  /// both oracles have the same base USD, then this is going to work. However,
+  /// if for example USDC has base ETH, it's going to fail because:
+  /// USDC/ETH = 1 / 3013, rather than USDC/USD = 1 / 1. If the opposite oracle
+  /// is ETH/USD then it's going to be 3013 / 1. Sending expected out of 1 ETH
+  /// will fail this test because the actual oracles are going to return 1/3013 ETH.
+  ///
+  /// This test will also ensure the oracles have the necessary functions or it will
+  /// revert. For example, if the oracle does not have the `decimals()` function as
+  /// some oracles do, then it will fail ahead of time.
   function _baseSwapTest(
     address priceChecker,
     uint256 expectedOut,
